@@ -38,6 +38,7 @@ CADOP_BASE_URL = (
     "https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/"
 )
 CADOP_FILE_NAME = "Relatorio_cadop.csv"
+CADOP_OUTPUT = OUTPUT_DIR / CADOP_FILE_NAME
 
 
 def _setup_logger() -> logging.Logger:
@@ -182,6 +183,22 @@ def _ensure_cadop(logger: logging.Logger) -> Path:
     logger.info("Baixando CADOP: %s", cadop_url)
     _download_file(cadop_url, cadop_path)
     return cadop_path
+
+
+def _persist_cadop(logger: logging.Logger, cadop_path: Path) -> Path:
+    """
+    Salva uma copia do CADOP na pasta de saida para uso na etapa 3.
+
+    :param logger: Logger da pipeline.
+    :param cadop_path: Caminho local do CADOP.
+    :return: Caminho do CADOP salvo na saida.
+    """
+    try:
+        shutil.copy2(cadop_path, CADOP_OUTPUT)
+        logger.info("CADOP salvo em %s", CADOP_OUTPUT)
+    except Exception as exc:
+        logger.warning("Falha ao salvar CADOP na saida: %s", exc)
+    return CADOP_OUTPUT
 
 
 def _prepare_directories(logger: logging.Logger) -> None:
@@ -358,6 +375,7 @@ def run_pipeline() -> None:
         _extract_zips(logger, trimestre_items)
 
         cadop_path = _ensure_cadop(logger)
+        _persist_cadop(logger, cadop_path)
         consolidado_path = _consolidate(logger, cadop_path)
         valid_path, _ = _validate(logger, consolidado_path)
         enriched_path, _ = _enrich(logger, valid_path, cadop_path)
