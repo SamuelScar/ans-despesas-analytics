@@ -1,4 +1,4 @@
-# ANS Despesas Analytics
+﻿# ANS Despesas Analytics
 
 Projeto desenvolvido como **teste técnico de estágio**, com foco em ingestão, processamento, validação, análise e exposição de dados públicos da **ANS (Agência Nacional de Saúde Suplementar)**.
 
@@ -141,6 +141,28 @@ serão documentadas conforme a implementação, conforme solicitado no teste té
 
 ---
 
+## ⚙️ Pipeline End-to-End (script único)
+
+Para executar todo o fluxo (1.1 → 2.3) do zero:
+
+```bash
+python etl/run_pipeline.py
+```
+
+Durante a execução:
+- `PROCESSANDO...` no início
+- `FINALIZADO` ao final
+
+### Saídas do pipeline
+- `data/output/despesas_agregadas.csv`
+- `data/output/Teste_Samuel_de_Souza.zip`
+- `data/output/consolidado_despesas.zip`
+- Log: `logs/pipeline_YYYYMMDD_HHMMSS.log`
+
+O pipeline usa `data/tmp` para arquivos intermediários e remove essa pasta ao final.
+
+---
+
 ## ⚖️ Trade-offs Técnicos
 
 Ao longo do desenvolvimento, foram (e serão) considerados diversos trade-offs técnicos, incluindo, mas não se limitando a:
@@ -155,10 +177,67 @@ Todas as decisões serão justificadas no contexto do problema, destacando prós
 
 ---
 
+## ✅ Decisões e Justificativas (conforme o desafio)
+
+### 1) Chave de ligação entre demonstrativos e cadastro
+Os demonstrativos não possuem CNPJ/Razão Social. A única identificação disponível é **REG_ANS**.
+
+**Decisão:** considerar **REG_ANS = REGISTRO_OPERADORA** (CADOP) para obter CNPJ e Razão Social.
+
+**Justificativa:** sem esse vínculo não é possível cumprir o item 1.3.
+
+---
+
+### 2) ValorDespesas
+Alguns arquivos antigos não possuem `VL_SALDO_INICIAL`.
+
+**Decisão:** usar **somatório de `VL_SALDO_FINAL`** por `REG_ANS + Ano + Trimestre`.
+
+**Justificativa:** garante consistência entre anos e evita dependência de colunas ausentes.
+
+---
+
+### 3) Ano/Trimestre
+A coluna `DATA` pode refletir data de registro contábil.
+
+**Decisão:** extrair Ano/Trimestre **do nome do arquivo** (`3T2025`).
+
+**Justificativa:** padroniza a consolidação independente do conteúdo de DATA.
+
+---
+
+### 4) Leitura incremental vs memória
+Os arquivos são grandes (centenas de milhares de linhas).
+
+**Decisão:**
+- CSV/TXT: leitura incremental (`chunksize`)
+- XLSX: leitura streaming (`openpyxl` read_only)
+
+**Justificativa:** evita estouro de memória e mantém estabilidade.
+
+---
+
+### 5) Inconsistências (1.3 / 2.1 / 2.2)
+**Tratamento aplicado:**
+- CNPJ inválido → excluído do fluxo
+- Razão Social vazia → excluída
+- ValorDespesas ≤ 0 → excluído
+- Sem match no CADOP → removido da agregação final
+
+**Justificativa:** a agregação por Razão Social e UF exige dados completos. As inconsistências são registradas no log.
+
+---
+
+### 6) Duplicidade de CNPJ no CADOP
+**Decisão:** usar o registro mais recente por `Data_Registro_ANS` (quando disponível).
+
+**Justificativa:** pressupõe o dado cadastral mais atualizado.
+
+---
+
 ## 📌 Observações Finais
 
 * O projeto prioriza clareza, simplicidade e organização
 * Nem todas as funcionalidades serão implementadas de forma exaustiva
 * A documentação faz parte do escopo de avaliação
 * O foco está na qualidade das decisões técnicas, não na quantidade de código
-

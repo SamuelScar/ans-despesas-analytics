@@ -63,3 +63,4 @@ pytest_cache/
 # ZIP outputs (test artifacts)
 # =========================
 *.zip
+TESTE_ENTRADA_ESTAGIARIOS_v2.pdf
