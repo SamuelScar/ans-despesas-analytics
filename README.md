@@ -18,7 +18,25 @@ O software foi dividido em camadas para manter o desenvolvimento organizado e pe
 
 - **ETL**: download, extracao, consolidacao, validacao, enriquecimento e agregacao.
 - **Banco de dados**: DDL, importacao com staging e queries analiticas.
-- **API e Frontend**: planejados, nao implementados ate o momento.
+- **Arquitetura API (Router/Service/Repository)**: as rotas cuidam do HTTP, os services concentram regras de negocio e os repositories fazem o acesso ao banco. Esse modelo separa responsabilidades e facilita manutencao.
+
+### Estrutura de pacotes Python
+As pastas dentro de `api/` possuem `__init__.py` propositalmente para garantir que sejam tratadas como pacotes Python e evitar problemas de import em diferentes ambientes. Mesmo vazios, eles mantem a estrutura explicita e previsivel.
+
+### Camadas da API
+- **container.py**: centraliza a criacao das dependencias (config, banco, repositorios e servicos) para evitar instancias duplicadas.
+- **db.py**: encapsula o acesso ao PostgreSQL (pool e helpers de query), evitando repeticao de codigo nos repositorios.
+
+###### Observacao sobre filtros:
+```
+```http
+GET /api/operadora?cnpj=12345678000195
+GET /api/operadora?razao_social=Operadora%20XYZ
+``` 
+frontend, mas isso não está explícito no backend. Encontramos essa 
+inconsistência e seguimos a descrição fiel do backend: apenas paginação 
+na listagem, sem a utilização do filtro.
+```
 
 
 ### Tecnologias e justificativas
@@ -39,6 +57,17 @@ O software foi dividido em camadas para manter o desenvolvimento organizado e pe
 ### Pre-requisitos
 - Python 3.12+
 - PostgreSQL 10+
+
+### Variaveis de ambiente (API)
+Crie um arquivo `.env` na raiz (ou copie de `.env.example`) para configurar o banco:
+```
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=ans_despesas
+DB_USER=postgres
+DB_PASSWORD=
+STATS_CACHE_TTL=300
+```
 
 ### 1) ETL (pipeline completo)
 ```bash
@@ -73,6 +102,12 @@ psql -d ans_despesas -f sql/import.sql
 ### 3) Queries analiticas
 Arquivo: `sql/analytics.sql`
 - Rode o arquivo no `psql` ou no seu **SGBD** (cliente SQL) conectado ao banco `ans_despesas`.
+
+### 4) API (FastAPI)
+```bash
+python -m uvicorn main:app --reload
+```
+Swagger: `http://127.0.0.1:8000/docs`
 
 ---
 
@@ -196,3 +231,33 @@ Essa escolha foi necessaria para manter o processamento consistente e cumprir o 
   - **Query 2:** usar a tabela agregada para responder total e media por UF com menor custo.
   - **Query 3:** usar os 3 ultimos trimestres e media geral do mesmo periodo para manter consistencia temporal e simplificar a leitura.
   - **Observacao:** mantive esse desenho porque equilibra comparabilidade, custo e clareza para avaliacao; em um cenario maior eu consideraria janelas por operadora ou series completas.
+
+### 4.1) Fonte de dados da API
+- **Contexto:** a etapa 4 permite usar banco do teste 3 ou CSVs.
+- **Pros:** usar o PostgreSQL aproveita o trabalho ja feito no ETL/DDL, garante consistencia e facilita consultas.
+- **Contras:** exige banco rodando e configuracao via `.env`.
+- **Decisao:** usar o banco PostgreSQL como fonte primaria da API.
+
+### 4.2.1) Framework do backend
+- **Contexto:** o enunciado permite Flask ou FastAPI.
+- **Pros:** FastAPI oferece tipagem, validacao e Swagger automatico, reduzindo manutencao e acelerando entrega.
+- **Contras:** adiciona dependencia e exige familiaridade com o framework.
+- **Decisao:** usar FastAPI pela documentacao automatica e menos codigo repetitivo.
+
+### 4.2.2) Estrategia de paginacao
+- **Contexto:** a rota de listagem pede paginação (page/limit).
+- **Pros:** offset-based e simples, combina com o requisito de page/limit e e suficiente para o volume atual.
+- **Contras:** offsets grandes perdem performance e podem variar se os dados mudarem entre paginas.
+- **Decisao:** usar paginação offset-based por simplicidade e adequacao ao volume.
+
+### 4.2.3) Cache vs queries diretas
+- **Contexto:** `/api/estatisticas` agrega dados que mudam pouco.
+- **Pros:** cache em memoria reduz custo e melhora tempo de resposta.
+- **Contras:** pode servir dados levemente desatualizados e se perde ao reiniciar a API.
+- **Decisao:** cachear por TTL curto em memoria, suficiente para o escopo do desafio.
+
+### 4.2.4) Estrutura de resposta da API
+- **Contexto:** a listagem precisa de paginação e a interface precisa de dados de navegação.
+- **Pros:** retornar `data + meta` facilita consumo e deixa a paginação transparente.
+- **Contras:** resposta mais verbosa.
+- **Decisao:** usar `data + metadados` com total, pagina e limite.
