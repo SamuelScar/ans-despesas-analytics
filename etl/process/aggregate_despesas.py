@@ -30,6 +30,16 @@ def _parse_valor(value: object) -> float:
         return 0.0
 
 
+def _std_pop(series: "pd.Series") -> float:
+    """
+    Calcula desvio padrao populacional (ddof=0).
+
+    :param series: Serie numerica.
+    :return: Desvio padrao populacional.
+    """
+    return float(series.std(ddof=0))
+
+
 def aggregate(
     input_file: Path = INPUT_FILE,
     output_file: Path = OUTPUT_FILE,
@@ -57,7 +67,7 @@ def aggregate(
         .agg(
             TotalDespesas="sum",
             MediaDespesas="mean",
-            DesvioPadraoDespesas="std",
+            DesvioPadraoDespesas=_std_pop,
         )
         .reset_index()
     )

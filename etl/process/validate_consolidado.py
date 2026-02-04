@@ -75,6 +75,18 @@ def _parse_valor(value: object) -> float:
         return 0.0
 
 
+def _append_reason(base: "pd.Series", reason: str, mask: "pd.Series") -> "pd.Series":
+    """
+    Anexa um motivo ao texto base quando a mascara e verdadeira.
+
+    :param base: Serie com motivos atuais.
+    :param reason: Motivo a adicionar.
+    :param mask: Mascara booleana onde o motivo se aplica.
+    :return: Serie atualizada.
+    """
+    return base.mask(mask, base.where(base == "", reason, base + ";" + reason))
+
+
 def validate(
     input_file: Path = INPUT_FILE,
     valid_file: Path = VALID_FILE,
@@ -97,18 +109,15 @@ def validate(
         _parse_valor
     )
 
-    reasons = []
-    for _, row in consolidated_df.iterrows():
-        motivos = []
-        if not _cnpj_is_valid(row["CNPJ"]):
-            motivos.append("CNPJ_INVALIDO")
-        if not row["RazaoSocial"].strip():
-            motivos.append("RAZAO_SOCIAL_VAZIA")
-        if row["ValorDespesas_num"] <= 0:
-            motivos.append("VALOR_NAO_POSITIVO")
-        reasons.append(";".join(motivos))
+    cnpj_valid = consolidated_df["CNPJ"].map(_cnpj_is_valid)
+    razao_ok = consolidated_df["RazaoSocial"].str.strip().ne("")
+    valor_ok = consolidated_df["ValorDespesas_num"] > 0
 
-    consolidated_df["Motivo"] = reasons
+    motivo = pd.Series("", index=consolidated_df.index)
+    motivo = _append_reason(motivo, "CNPJ_INVALIDO", ~cnpj_valid)
+    motivo = _append_reason(motivo, "RAZAO_SOCIAL_VAZIA", ~razao_ok)
+    motivo = _append_reason(motivo, "VALOR_NAO_POSITIVO", ~valor_ok)
+    consolidated_df["Motivo"] = motivo
     invalid = consolidated_df[consolidated_df["Motivo"] != ""].copy()
     valid = consolidated_df[consolidated_df["Motivo"] == ""].copy()
 

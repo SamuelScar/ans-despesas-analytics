@@ -269,7 +269,7 @@ def _consolidate(logger: logging.Logger, cadop_path: Path) -> Path:
     :return: Caminho do CSV consolidado.
     """
     logger.info("Consolidando dados")
-    consolidado_path = INTER_DIR / "consolidado_despesas.csv"
+    consolidado_path = OUTPUT_DIR / "consolidado_despesas.csv"
     consolidate(
         extract_dir=EXTRACT_DIR,
         cadop_path=cadop_path,
@@ -288,8 +288,8 @@ def _validate(logger: logging.Logger, consolidado_path: Path) -> tuple[Path, Pat
     :return: Tupla (validos, inconsistencias).
     """
     logger.info("Validando dados")
-    valid_path = INTER_DIR / "consolidado_validado.csv"
-    invalid_path = INTER_DIR / "inconsistencias_2_1.csv"
+    valid_path = OUTPUT_DIR / "consolidado_validado.csv"
+    invalid_path = OUTPUT_DIR / "inconsistencias_2_1.csv"
     validate(
         input_file=consolidado_path,
         valid_file=valid_path,
@@ -315,8 +315,8 @@ def _enrich(
     :return: Tupla (enriquecido, inconsistencias).
     """
     logger.info("Enriquecendo dados")
-    enriched_path = INTER_DIR / "consolidado_enriquecido.csv"
-    missing_path = INTER_DIR / "inconsistencias_2_2.csv"
+    enriched_path = OUTPUT_DIR / "consolidado_enriquecido.csv"
+    missing_path = OUTPUT_DIR / "inconsistencias_2_2.csv"
     enrich(
         input_file=valid_path,
         cadop_path=cadop_path,

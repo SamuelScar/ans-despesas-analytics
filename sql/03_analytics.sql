@@ -27,12 +27,12 @@ WHERE (i.ano, i.trimestre) = (
 ORDER BY crescimento_percentual DESC
 LIMIT 5;
 
--- Query 2: Distribuicao de despesas por UF (top 5)
+-- Query 2: Distribuicao de despesas por UF (top 5) e media por operadora na UF
 
 SELECT
     uf,
     SUM(total_despesas) AS total_despesas_uf,
-    ROUND(AVG(total_despesas), 2) AS media_por_operadora
+    ROUND(AVG(total_despesas), 2) AS media_por_operadora_uf
 FROM ans.despesas_agregadas
 WHERE uf IS NOT NULL
 GROUP BY uf

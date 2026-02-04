@@ -32,6 +32,61 @@ CREATE TABLE ans_stg.cadop (
 
 \copy ans_stg.cadop FROM 'data/output/Relatorio_cadop.csv' WITH (FORMAT csv, HEADER true, DELIMITER ';', ENCODING 'UTF8');
 
+WITH cadop_clean AS (
+    SELECT
+        regexp_replace(cnpj, '[^0-9]', '', 'g') AS cnpj,
+        NULLIF(trim(registro_operadora), '') AS registro_operadora,
+        NULLIF(trim(razao_social), '') AS razao_social,
+        NULLIF(trim(nome_fantasia), '') AS nome_fantasia,
+        NULLIF(trim(modalidade), '') AS modalidade,
+        NULLIF(trim(logradouro), '') AS logradouro,
+        NULLIF(trim(numero), '') AS numero,
+        NULLIF(trim(complemento), '') AS complemento,
+        NULLIF(trim(bairro), '') AS bairro,
+        NULLIF(trim(cidade), '') AS cidade,
+        upper(NULLIF(trim(uf), '')) AS uf,
+        regexp_replace(cep, '[^0-9]', '', 'g') AS cep,
+        regexp_replace(ddd, '[^0-9]', '', 'g') AS ddd,
+        NULLIF(trim(telefone), '') AS telefone,
+        NULLIF(trim(fax), '') AS fax,
+        NULLIF(trim(endereco_eletronico), '') AS endereco_eletronico,
+        NULLIF(trim(representante), '') AS representante,
+        NULLIF(trim(cargo_representante), '') AS cargo_representante,
+        NULLIF(trim(regiao_de_comercializacao), '') AS regiao_de_comercializacao,
+        CASE
+            WHEN data_registro_ans ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN data_registro_ans::date
+            WHEN data_registro_ans ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$' THEN to_date(data_registro_ans, 'DD/MM/YYYY')
+            ELSE NULL
+        END AS data_registro_ans
+    FROM ans_stg.cadop
+    WHERE regexp_replace(cnpj, '[^0-9]', '', 'g') ~ '^[0-9]{14}$'
+      AND NULLIF(trim(razao_social), '') IS NOT NULL
+),
+cadop_dedup AS (
+    SELECT DISTINCT ON (cnpj)
+        cnpj,
+        registro_operadora,
+        razao_social,
+        nome_fantasia,
+        modalidade,
+        logradouro,
+        numero,
+        complemento,
+        bairro,
+        cidade,
+        uf,
+        cep,
+        ddd,
+        telefone,
+        fax,
+        endereco_eletronico,
+        representante,
+        cargo_representante,
+        regiao_de_comercializacao,
+        data_registro_ans
+    FROM cadop_clean
+    ORDER BY cnpj, data_registro_ans DESC NULLS LAST
+)
 INSERT INTO ans.operadoras_cadop (
     cnpj,
     registro_operadora,
@@ -55,37 +110,52 @@ INSERT INTO ans.operadoras_cadop (
     data_registro_ans
 )
 SELECT
-    regexp_replace(cnpj, '[^0-9]', '', 'g') AS cnpj,
-    NULLIF(trim(registro_operadora), ''),
-    NULLIF(trim(razao_social), ''),
-    NULLIF(trim(nome_fantasia), ''),
-    NULLIF(trim(modalidade), ''),
-    NULLIF(trim(logradouro), ''),
-    NULLIF(trim(numero), ''),
-    NULLIF(trim(complemento), ''),
-    NULLIF(trim(bairro), ''),
-    NULLIF(trim(cidade), ''),
-    upper(NULLIF(trim(uf), '')),
-    regexp_replace(cep, '[^0-9]', '', 'g'),
-    regexp_replace(ddd, '[^0-9]', '', 'g'),
-    NULLIF(trim(telefone), ''),
-    NULLIF(trim(fax), ''),
-    NULLIF(trim(endereco_eletronico), ''),
-    NULLIF(trim(representante), ''),
-    NULLIF(trim(cargo_representante), ''),
-    NULLIF(trim(regiao_de_comercializacao), ''),
-    CASE
-        WHEN data_registro_ans ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN data_registro_ans::date
-        WHEN data_registro_ans ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$' THEN to_date(data_registro_ans, 'DD/MM/YYYY')
-        ELSE NULL
-    END
-FROM ans_stg.cadop
-WHERE regexp_replace(cnpj, '[^0-9]', '', 'g') ~ '^[0-9]{14}$'
-  AND NULLIF(trim(razao_social), '') IS NOT NULL
+    cnpj,
+    registro_operadora,
+    razao_social,
+    nome_fantasia,
+    modalidade,
+    logradouro,
+    numero,
+    complemento,
+    bairro,
+    cidade,
+    uf,
+    cep,
+    ddd,
+    telefone,
+    fax,
+    endereco_eletronico,
+    representante,
+    cargo_representante,
+    regiao_de_comercializacao,
+    data_registro_ans
+FROM cadop_dedup
 ON CONFLICT (cnpj) DO UPDATE SET
+    registro_operadora = EXCLUDED.registro_operadora,
     razao_social = EXCLUDED.razao_social,
+    nome_fantasia = EXCLUDED.nome_fantasia,
+    modalidade = EXCLUDED.modalidade,
+    logradouro = EXCLUDED.logradouro,
+    numero = EXCLUDED.numero,
+    complemento = EXCLUDED.complemento,
+    bairro = EXCLUDED.bairro,
+    cidade = EXCLUDED.cidade,
     uf = EXCLUDED.uf,
-    data_registro_ans = EXCLUDED.data_registro_ans;
+    cep = EXCLUDED.cep,
+    ddd = EXCLUDED.ddd,
+    telefone = EXCLUDED.telefone,
+    fax = EXCLUDED.fax,
+    endereco_eletronico = EXCLUDED.endereco_eletronico,
+    representante = EXCLUDED.representante,
+    cargo_representante = EXCLUDED.cargo_representante,
+    regiao_de_comercializacao = EXCLUDED.regiao_de_comercializacao,
+    data_registro_ans = EXCLUDED.data_registro_ans
+WHERE EXCLUDED.data_registro_ans IS NOT NULL
+  AND (
+        ans.operadoras_cadop.data_registro_ans IS NULL
+        OR EXCLUDED.data_registro_ans >= ans.operadoras_cadop.data_registro_ans
+      );
 
 -- =========================
 -- 2) CONSOLIDADO

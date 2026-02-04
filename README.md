@@ -20,6 +20,15 @@ O software foi dividido em camadas para manter o desenvolvimento organizado e pe
 - **Banco de dados**: DDL, importacao com staging e queries analiticas.
 - **API e Frontend**: planejados, nao implementados ate o momento.
 
+
+### Tecnologias e justificativas
+- **Python 3.12**: escolhido por ser mais facil de lidar (documentacao, comunidade e exemplos). Apesar do Java parecer mais robusto, ele tende a ser mais complexo, com o tempo limitado do desafio o Python permitiu entregar mais sem perder qualidade.
+- **pandas**: manipulacao tabular confiavel e produtiva para consolidar, validar e agregar CSVs.
+- **requests + BeautifulSoup**: simples e robusto para listar o FTP da ANS e baixar arquivos.
+- **openpyxl**: leitura de XLSX em modo streaming, evitando alto consumo de memoria.
+- **PostgreSQL 10+**: escolhido por ser mais funcional para validacoes e scripts SQL. A linguagem e as funcoes disponiveis tornam as limpezas e conversoes mais diretas.
+
+
 ---
 
 ## Como executar
@@ -33,15 +42,20 @@ O software foi dividido em camadas para manter o desenvolvimento organizado e pe
 python etl/run_pipeline.py
 ```
 Saidas principais:
+- `data/output/consolidado_despesas.csv`
+- `data/output/consolidado_despesas.zip`
+- `data/output/consolidado_validado.csv`
+- `data/output/inconsistencias_2_1.csv`
+- `data/output/consolidado_enriquecido.csv`
+- `data/output/inconsistencias_2_2.csv`
 - `data/output/despesas_agregadas.csv`
 - `data/output/Teste_Samuel_de_Souza.zip`
-- `data/output/consolidado_despesas.zip`
 - `data/output/Relatorio_cadop.csv`
 - Log: `logs/pipeline_YYYYMMDD_HHMMSS.log`
 
 ### 2) Banco de dados (DDL + importacao)
 
-1) Descompacte `data/output/consolidado_despesas.zip` na pasta `data/output` para gerar `consolidado_despesas.csv`.
+1) Se `data/output/consolidado_despesas.csv` ainda nao existir, descompacte `data/output/consolidado_despesas.zip` na pasta `data/output`.
 
 2) Execute os scripts SQL:
 ```bash
@@ -116,62 +130,55 @@ Essa escolha foi necessaria para manter o processamento consistente e cumprir o 
 
 ## Decisoes e trade-offs
 
-### 1) Estrutura de diretorios dos trimestres
-- **Problema:** PDF indicava formato `YYYY/QQ/`, mas o endpoint da ANS usa `1T2024.zip`.
-- **Decisao:** adaptar o indexador para o formato real do endpoint.
-- **Justificativa:** o objetivo era executar o pipeline com os dados reais publicados. Aderir ao formato descrito no PDF impediria o download automatico, enquanto seguir o formato observado garante funcionamento hoje. O trade-off e depender do padrao atual do servidor, mas documentado e facilmente ajustavel se mudar.
+### 1.1) Acesso a API de Dados Abertos da ANS
+- **Desafio:** o PDF indicava pastas `YYYY/QQ/`, mas o endpoint real expunha ZIPs no formato `{trimestre}T{ano}.zip`.
+- **Decisao/Trade-off:** adaptar o indexador ao formato real para garantir download hoje. O trade-off e depender do padrao atual do servidor, mas isso fica documentado e facilmente ajustavel.
 
-### 2) Chave de ligacao entre demonstrativos e CADOP
-- **Problema:** demonstrativos nao tem CNPJ/Razao Social.
-- **Decisao (deducao):** usar `REG_ANS` (demonstrativos) = `REGISTRO_OPERADORA` (CADOP) porque observei a correspondencia direta desses valores entre os arquivos.
-- **Justificativa:** sem essa deducao nao existia chave para obter CNPJ/Razao Social e cumprir 1.3/2.2. O trade-off e assumir que a correspondencia e valida para todo o conjunto, mas foi a unica ligacao consistente observada e permitiu seguir com o desafio.
+### 1.2) Processamento de arquivos
+- **Desafio:** arquivos em CSV/TXT/XLSX, com colunas e estruturas diferentes.
+- **Trade-off tecnico:** processar tudo em memoria vs processar incrementalmente.
+- **Decisao:** leitura em chunks para CSV/TXT e streaming para XLSX; deteccao de colunas por normalizacao e filtro de linhas com "despesa" + "evento/sinistro". Prioriza estabilidade em maquinas com menos memoria.
 
-### 3) Colunas e valores de despesas
-- **Problema:** ausencia de `VL_SALDO_INICIAL` em arquivos antigos.
-- **Decisao:** usar **somatorio de `VL_SALDO_FINAL`** por `REG_ANS + Ano + Trimestre`.
-- **Justificativa:** essa coluna existe de forma mais consistente nos arquivos. O trade-off e usar saldo final como proxy de despesa, mas garante comparabilidade entre anos e evita quebrar o processamento por coluna ausente.
+### 1.3) Consolidacao e analise de inconsistencias
+- **Analise critica (do PDF):** CNPJs duplicados com razoes diferentes, valores zerados/negativos, trimestres inconsistentes.
+- **Decisoes aplicadas:**
+  - Deduzir `REG_ANS` (demonstrativos) = `REGISTRO_OPERADORA` (CADOP) para obter CNPJ/Razao Social, ja que os demonstrativos nao traziam essas colunas.
+  - Usar `VL_SALDO_FINAL` como base de `ValorDespesas` por consistencia entre arquivos.
+  - Extrair ano/trimestre do nome do arquivo (`3T2025`) para evitar discrepancias com a coluna `DATA`.
+  - Separar inconsistencias em arquivos especificos nas etapas 2.1 e 2.2.
+- **Trade-off:** `VL_SALDO_FINAL` e a deducao `REG_ANS` como chave sao proxies necessarios para cumprir o desafio com dados reais.
 
-### 4) Ano e trimestre
-- **Problema:** coluna `DATA` pode representar datas contabeis variadas.
-- **Decisao:** extrair ano/trimestre do nome do arquivo (`3T2025`).
-- **Justificativa:** o nome do arquivo reflete o periodo oficial do demonstrativo. O trade-off e ignorar a coluna `DATA`, mas evita discrepancias quando a data e de lancamento e nao do trimestre.
+### 2.1) Validacao de dados
+- **Trade-off tecnico (CNPJ invalido):** poderia corrigir ou marcar.
+- **Decisao:** remover registros invalidos e registrar o motivo em `inconsistencias_2_1.csv`.
+- **Justificativa:** evita contaminar agregacoes e rankings com identificacoes incorretas.
 
-### 5) Leitura incremental vs memoria
-- **Decisao:** leitura em chunks para CSV/TXT e streaming para XLSX.
-- **Justificativa:** os arquivos sao grandes e variam de formato. O trade-off e maior tempo de leitura, mas garante estabilidade e execucao em ambientes com menos memoria.
+### 2.2) Enriquecimento com dados cadastrais
+- **Analise critica (do PDF):**
+  - CNPJs sem match no cadastro.
+  - CNPJs duplicados no CADOP com dados diferentes.
+- **Decisoes aplicadas:**
+  - Manter registros sem match com campos nulos e registrar em `inconsistencias_2_2.csv`.
+  - Resolver duplicidade por CNPJ escolhendo o registro mais recente (`DataRegistroANS`).
+- **Trade-off tecnico (join):** pandas em memoria apos validacao, por volume reduzido e simplicidade; para volumes grandes seria necessario streaming/DB.
 
-### 6) Validacao e consistencia dos dados
-- **Decisao:** excluir CNPJ invalido, Razao Social vazia e valores <= 0.
-- **Justificativa:** a analise pedida depende de identificacao correta e valores positivos. Preferi perder registros inconsistentes a contaminar agregacoes e rankings com dados incorretos. O trade-off e reduzir o volume final, mas aumenta confiabilidade.
+### 2.3) Agregacao e ordenacao
+- **Desafio adicional (do PDF):** media e desvio padrao por operadora/UF.
+- **Decisao:** calcular media por operadora/UF e desvio padrao populacional (ddof=0) considerando os 3 trimestres analisados como conjunto completo.
+- **Trade-off tecnico (ordenacao):** ordenar em memoria apos agregacao por ser volume pequeno; para volumes maiores a ordenacao poderia ir para SQL ou processamento externo.
 
-### 7) Duplicidade de CNPJ no CADOP
-- **Decisao:** usar o registro mais recente por `Data_Registro_ANS`.
-- **Justificativa:** o CADOP pode ter historico; para analise atual, o registro mais recente e o mais adequado. O trade-off e perder historico, mas simplifica e evita duplicidade no join.
+### 3.2) Modelagem e DDL
+- **Trade-off tecnico (normalizacao):** tabelas separadas (CADOP, consolidado, agregado) vs tabela unica desnormalizada.
+- **Decisao:** modelo normalizado para reduzir redundancia e facilitar atualizacoes cadastrais.
+- **Trade-off tecnico (tipos):**
+  - Monetario em `numeric(18,5)` para precisao.
+  - Datas em `date` para `Data_Registro_ANS` (sem necessidade de horario).
 
-### 8) Persistencia do CADOP na saida
-- **Decisao:** manter `Relatorio_cadop.csv` na pasta de saida.
-- **Justificativa:** a etapa do banco exige o CSV de cadastro. Persistir o arquivo evita download repetido e deixa o ambiente reproducivel para quem for validar.
+### 3.3) Importacao e tratamento de inconsistencias
+- **Analise critica (do PDF):** NULLs em campos obrigatorios, strings em campos numericos, datas inconsistentes.
+- **Decisao:** staging em `ans_stg`, conversoes com regex e datas em `YYYY-MM-DD` ou `DD/MM/YYYY`; registros invalidos sao descartados.
 
-### 9) Modelagem do banco (normalizacao)
-- **Decisao:** tabelas normalizadas (CADOP, consolidado, agregado).
-- **Justificativa:** evita repetir cadastro a cada trimestre, reduz tamanho e permite atualizar CADOP sem recalcular tudo. O trade-off e necessidade de joins, mas o volume e pequeno o suficiente para consultas analiticas.
-
-### 10) Tipos de dados
-- **Monetario:** `numeric(18,5)` para precisao (evita erros de `float`).
-- **Data:** `date` para `Data_Registro_ANS` (sem necessidade de horario).
-  - **Justificativa:** prioridade para precisao contabel e simplicidade. `float` pode gerar arredondamentos; `date` evita armazenar horario que nao e usado.
-
-### 11) Indices criados
-- **PKs:** garantem unicidade e ja indexam as chaves principais.
-- **Indices adicionais:** `registro_operadora`, `uf`, `cnpj`, `ano/trimestre` para filtros e analises.
-  - **Justificativa:** refletem os padroes de consulta do desafio (detalhe por operadora, filtros por UF e periodo). O trade-off e custo de escrita um pouco maior, aceitavel para cargas batch.
-
-### 12) Importacao com staging
-- **Decisao:** importar CSVs em `ans_stg` e limpar antes de inserir.
-- **Justificativa:** mesmo com ETL, arquivos externos podem ter variacoes. Staging garante que uma linha ruim nao interrompa toda a carga; o trade-off e mais etapas, mas ganha robustez.
-
-### 13) Queries analiticas
-- **Query 1:** considera apenas operadoras com dados nos dois extremos (comparabilidade).
-- **Query 2:** usa tabela agregada para reduzir custo e incluir media por operadora.
-- **Query 3:** considera os 3 ultimos trimestres globais e mede acima da media geral.
-  - **Justificativa:** escolhas privilegiam comparabilidade e simplicidade. Em especial, usar extremos globais evita comparar periodos diferentes, e usar os 3 ultimos trimestres reduz ruido e custo.
+### 3.4) Queries analiticas
+- **Query 1:** compara primeiro vs ultimo trimestre global; operadoras sem dados nos extremos ficam fora (garante comparabilidade).
+- **Query 2:** usa `AVG(total_despesas)` por UF para media por operadora.
+- **Query 3:** subquery com media geral dos 3 ultimos trimestres; prioriza legibilidade e manutenibilidade.
