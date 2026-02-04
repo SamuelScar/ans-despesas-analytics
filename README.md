@@ -108,6 +108,7 @@ Arquivo: `sql/analytics.sql`
 python -m uvicorn main:app --reload
 ```
 Swagger: `http://127.0.0.1:8000/docs`
+Postman (colecao compartilhada): `https://souzacarvalhosamuel-138893.postman.co/workspace/SAMUEL-DE-SOUZA-CARVALHO's-Work~91069d87-6bac-4927-85df-e0426b77b5ef/collection/52106995-fbec110a-b30c-450d-ae1e-303a6bcfbee7?action=share&creator=52106995`
 
 ---
 
