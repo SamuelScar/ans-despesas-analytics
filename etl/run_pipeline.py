@@ -12,6 +12,9 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
+# Para "voltar a aplicacao pro 0":
+# powershell -ExecutionPolicy Bypass -File .\voltar_aplicacao_zero.ps1
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -31,7 +34,7 @@ RAW_DIR = TMP_DIR / "raw"
 EXTRACT_DIR = TMP_DIR / "extracted"
 INTER_DIR = TMP_DIR / "intermediate"
 TMP_MARKER = TMP_DIR / ".pipeline_tmp"
-LOG_DIR = Path("logs")
+LOG_DIR = DATA_DIR / "logs"
 OUTPUT_DIR = DATA_DIR / "output"
 
 CADOP_BASE_URL = (

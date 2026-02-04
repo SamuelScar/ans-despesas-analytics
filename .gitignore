@@ -24,9 +24,7 @@ venv/
 # =========================
 # Data files (local processing)
 # =========================
-data/raw/
-data/processed/
-data/output/
+data/
 
 # =========================
 # Database
@@ -64,3 +62,6 @@ pytest_cache/
 # =========================
 *.zip
 TESTE_ENTRADA_ESTAGIARIOS_v2.pdf
+
+# Local reset script
+voltar_aplicacao_zero.ps1

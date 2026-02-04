@@ -84,7 +84,12 @@ def _append_reason(base: "pd.Series", reason: str, mask: "pd.Series") -> "pd.Ser
     :param mask: Mascara booleana onde o motivo se aplica.
     :return: Serie atualizada.
     """
-    return base.mask(mask, base.where(base == "", reason, base + ";" + reason))
+    updated = base.copy()
+    to_update = mask & base.eq("")
+    to_append = mask & base.ne("")
+    updated.loc[to_update] = reason
+    updated.loc[to_append] = updated.loc[to_append] + ";" + reason
+    return updated
 
 
 def validate(

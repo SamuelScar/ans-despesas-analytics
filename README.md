@@ -51,7 +51,7 @@ Saidas principais:
 - `data/output/despesas_agregadas.csv`
 - `data/output/Teste_Samuel_de_Souza.zip`
 - `data/output/Relatorio_cadop.csv`
-- Log: `logs/pipeline_YYYYMMDD_HHMMSS.log`
+- Log: `data/logs/pipeline_YYYYMMDD_HHMMSS.log`
 
 ### 2) Banco de dados (DDL + importacao)
 
@@ -59,16 +59,16 @@ Saidas principais:
 
 2) Execute os scripts SQL:
 ```bash
-psql -d postgres -f sql/01_ddl.sql
-psql -d ans_despesas -f sql/02_import.sql
+psql -d postgres -f sql/ddl.sql
+psql -d ans_despesas -f sql/import.sql
 ```
 
 > Obs:
-> - `sql/01_ddl.sql` cria o banco e usa `\connect`, entao rode via `psql`.
-> - `sql/02_import.sql` usa `\copy` e assume encoding UTF-8.
+> - `sql/ddl.sql` cria o banco e usa `\connect`, entao rode via `psql`.
+> - `sql/import.sql` usa `\copy` e assume encoding UTF-8.
 
 ### 3) Queries analiticas
-Arquivo: `sql/03_analytics.sql`
+Arquivo: `sql/analytics.sql`
 - Rode o arquivo no `psql` ou no seu **SGBD** (cliente SQL) conectado ao banco `ans_despesas`.
 
 ---
