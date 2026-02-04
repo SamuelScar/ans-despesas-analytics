@@ -27,17 +27,6 @@ As pastas dentro de `api/` possuem `__init__.py` propositalmente para garantir q
 - **container.py**: centraliza a criacao das dependencias (config, banco, repositorios e servicos) para evitar instancias duplicadas.
 - **db.py**: encapsula o acesso ao PostgreSQL (pool e helpers de query), evitando repeticao de codigo nos repositorios.
 
-###### Observacao sobre filtros:
-```
-```http
-GET /api/operadora?cnpj=12345678000195
-GET /api/operadora?razao_social=Operadora%20XYZ
-``` 
-frontend, mas isso não está explícito no backend. Encontramos essa 
-inconsistência e seguimos a descrição fiel do backend: apenas paginação 
-na listagem, sem a utilização do filtro.
-```
-
 
 ### Tecnologias e justificativas
 - **Python 3.12**: escolhido por ser mais facil de lidar (documentacao, comunidade e exemplos). Apesar do Java parecer mais robusto, ele tende a ser mais complexo, com o tempo limitado do desafio o Python permitiu entregar mais sem perder qualidade.
